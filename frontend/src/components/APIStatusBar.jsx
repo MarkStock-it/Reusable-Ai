@@ -1,10 +1,20 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useStatusStore } from '../stores/statusStore';
 import { useKeysStore } from '../stores/keysStore';
 
 export default function APIStatusBar() {
-  const { currentProvider, currentKeyLabel, tokensUsed, isStreaming } = useStatusStore();
+  const { currentProvider, currentKeyLabel, tokensUsed, isStreaming, setStatus } = useStatusStore();
   const { keys } = useKeysStore();
+
+  // Initialize status with first active key on load
+  useEffect(() => {
+    if (!currentProvider && keys.length > 0) {
+      const activeKey = keys.find(k => k.status === 'active');
+      if (activeKey) {
+        setStatus(activeKey.provider, activeKey.label, activeKey.id);
+      }
+    }
+  }, [keys, currentProvider, setStatus]);
 
   const getStatusDotColor = () => {
     if (!currentProvider) return '#3d3b52'; // muted
