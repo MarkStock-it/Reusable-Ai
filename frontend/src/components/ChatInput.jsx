@@ -85,7 +85,9 @@ export default function ChatInput() {
                 console.log(parsed.message || parsed.content);
               }
             } catch (e) {
-              // Ignore parsing errors
+              // Stream chunk JSON parse failed (e.g. partial chunk) - intentionally swallowed,
+              // next iteration will attempt to parse the completed chunk.
+              console.debug('SSE chunk parse skipped:', e?.message);
             }
           }
         }

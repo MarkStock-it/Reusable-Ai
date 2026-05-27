@@ -107,7 +107,7 @@ class TestSessions:
         data = r.json()
         assert data["title"] == "TEST_Session"
         assert data["mode"] == "general"
-        assert data["pinned"] is False
+        assert data["pinned"] == False
         TestSessions.session_id = data["id"]
 
     def test_get_session(self):
@@ -138,7 +138,7 @@ class TestSessions:
         )
         assert r.status_code == 200
         g = requests.get(f"{API}/sessions/{TestSessions.session_id}").json()
-        assert g["pinned"] is True
+        assert g["pinned"] == True
 
     def test_get_messages_empty(self):
         r = requests.get(f"{API}/sessions/{TestSessions.session_id}/messages")
