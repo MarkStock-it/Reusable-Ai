@@ -1,0 +1,125 @@
+{
+  "project_name": "NEXUS",
+  "app_type": "saas_app",
+  "theme": "dark",
+  "archetype": "5 (Luxury)",
+  "aesthetic": "Apple-level luxury meets aurora night. Restrained, intentional, with violet as the soul of the interface.",
+  "global_rules": [
+    "Strictly Dark Mode only.",
+    "Max border-radius: 8px. Use sharp (4px or 0px) edges where appropriate to avoid a bubbly look.",
+    "NO Material Design drop shadows. Rely on 1px borders, subtle glows, and pure background contrast.",
+    "NO purple gradients on white. Keep the UI dark.",
+    "NO card-heavy dashboard feel. Keep it flat, expansive, and immersive.",
+    "NO emojis in UI chrome.",
+    "All interactive and key informational elements MUST include a data-testid attribute.",
+    "Use .jsx/.js files exclusively. NO .tsx or .ts files.",
+    "Use lucide-react for icons."
+  ],
+  "colors": {
+    "css_variables_to_add": {
+      "--bg-base": "#0a0a0f",
+      "--bg-surface": "#111118",
+      "--bg-elevated": "#18181f",
+      "--border": "rgba(255, 255, 255, 0.07)",
+      "--accent-primary": "#8b5cf6",
+      "--accent-glow": "#a78bfa",
+      "--accent-aurora": "linear-gradient(135deg, #8b5cf6, #c084fc, #60a5fa)",
+      "--text-primary": "#f0eeff",
+      "--text-secondary": "#7c7a96",
+      "--text-muted": "#3d3b52"
+    },
+    "tailwind_config_mapping": {
+      "background": "var(--bg-base)",
+      "surface": "var(--bg-surface)",
+      "elevated": "var(--bg-elevated)",
+      "border": "var(--border)",
+      "primary": "var(--accent-primary)",
+      "primary-glow": "var(--accent-glow)",
+      "aurora": "var(--accent-aurora)",
+      "text-primary": "var(--text-primary)",
+      "text-secondary": "var(--text-secondary)",
+      "text-muted": "var(--text-muted)"
+    }
+  },
+  "typography": {
+    "sans": "Geist, DM Sans, sans-serif",
+    "serif": "Lora, serif",
+    "mono": "Geist Mono, JetBrains Mono, monospace",
+    "usage": {
+      "ui_labels_nav": "font-sans (Geist/DM Sans)",
+      "chat_output": "font-serif (Lora) for AI Creative Mode, otherwise sans.",
+      "code_blocks": "font-mono (Geist Mono/JetBrains Mono) text-sm"
+    }
+  },
+  "layout": {
+    "overall": "Full viewport height (h-screen), flex/grid layout, hidden overflow on body.",
+    "left_sidebar": {
+      "width": "260px fixed",
+      "background": "var(--bg-base) or var(--bg-surface)",
+      "border": "border-r border-white/5",
+      "content": "Session history and Mode Switcher. Minimalist session list (title + timestamp, actions on hover)."
+    },
+    "main_canvas": {
+      "width": "Flex-1, fills remaining space",
+      "padding": "48px padding (p-12)",
+      "max_content_width": "780px centered (max-w-[780px] mx-auto)",
+      "message_alignment": "User messages right-aligned with var(--bg-elevated) background. AI messages left-aligned with NO background (transparent)."
+    },
+    "right_panel": {
+      "optional": true,
+      "width": "320px fixed drawer for Settings/API Manager",
+      "effect": "Glassmorphism: backdrop-blur-xl bg-black/60",
+      "border": "border-l border-white/5"
+    },
+    "api_status_bar": {
+      "height": "28px (h-7)",
+      "position": "Fixed at bottom",
+      "style": "Ultra-thin, monospaced font, border-t border-white/5, bg-surface",
+      "content_example": "[● GEMINI · gm-key-2 · 1,240 tokens used]",
+      "status_dots": "Green = active, Amber = rate-limited, Red = error"
+    }
+  },
+  "components": {
+    "mode_switcher": {
+      "modes": [
+        {"id": "general", "label": "Just Chat", "color": "blue"},
+        {"id": "code", "label": "Build & Debug", "color": "green"},
+        {"id": "render", "label": "Visual Generation", "color": "orange"},
+        {"id": "study", "label": "Learn & Explain", "color": "purple"},
+        {"id": "analyze", "label": "Research & Reason", "color": "red"},
+        {"id": "creative", "label": "Write & Imagine", "color": "white"}
+      ],
+      "active_state": "Soft violet pill background with 1px violet border glow (box-shadow: 0 0 0 1px var(--accent-glow)).",
+      "transition": "Selected mode slides pill underline with spring ease."
+    },
+    "chat_input": {
+      "style": "Pill-shaped (rounded-full), elevated (bg-elevated).",
+      "focus": "Violet focus ring glow.",
+      "send_button": "Aurora gradient (var(--accent-aurora)) on hover."
+    },
+    "code_blocks": {
+      "style": "Syntax-highlighted output, Copy Code button, language badge.",
+      "background": "bg-black/40 border border-white/10 rounded-md"
+    },
+    "scrollbars": {
+      "style": "Hidden by default. Visible on hover. 2px wide, violet-tinted (using tailwind scrollbar utilities or custom CSS in index.css)."
+    }
+  },
+  "micro_interactions": {
+    "general": "200ms ease transitions globally.",
+    "active_states": "box-shadow: 0 0 0 1px var(--accent-glow)",
+    "mode_switch": "Canvas fade effect (opacity 0 -> 1, 150ms).",
+    "message_send": "Input scale(0.98) press feel.",
+    "code_block": "Slides up 8px + fade in (translate-y-2 to translate-y-0, opacity 0 to 1).",
+    "sidebar_session_hover": "Left border lights up violet (border-l-2 border-primary).",
+    "loading_indicator": "Three dots with aurora gradient pulse."
+  },
+  "instructions_to_main_agent": {
+    "setup": "1. Initialize Tailwind with provided colors and fonts. 2. Install lucide-react, framer-motion (for micro-interactions), zustand (for state).",
+    "shadcn": "Install Shadcn UI but aggressively override default styles to match the Luxury Dark Theme (remove rounded-xl, borders, and shadows). Use raw Tailwind HTML for layout and Mode Switcher to ensure it matches the highly custom aesthetic.",
+    "api_key_manager": "Build a robust Settings Panel (glassmorphism drawer) to manage keys for multiple providers (Gemini, OpenAI, Anthropic, Mistral, Cohere, Groq). Encrypt keys if stored, manage state via Zustand.",
+    "rotation_engine": "Implement the API Rotation Engine in the backend (FastAPI) that handles 429 errors by marking keys rate-limited (60s cooldown) and auto-retrying.",
+    "ai_modes": "Ensure each AI Mode injects the correct hidden system prompt before sending to the backend.",
+    "testing": "Ensure all interactive elements (buttons, inputs, chat bubbles, sidebar items) have unique kebab-case data-testid attributes."
+  }
+}
