@@ -1,28 +1,25 @@
 import React from 'react';
-import { useModeStore, AI_MODES } from '../stores/modeStore';
-import { useSessionStore } from '../stores/sessionStore';
+import { useModeStore, AI_MODES } from '../stores/modeStore.js';
+import { useSessionStore } from '../stores/sessionStore.js';
 import * as Icons from 'lucide-react';
 
 export default function ModeSwitcher() {
-  const { currentMode, setMode } = useModeStore();
-  const { createSession } = useSessionStore();
+  const currentMode = useModeStore((s) => s.currentMode);
+  const setMode = useModeStore((s) => s.setMode);
+  const createSession = useSessionStore((s) => s.createSession);
 
-  const handleModeChange = async (modeId) => {
+  const handleModeChange = (modeId) => {
     setMode(modeId);
-    // Create new session with this mode
     const mode = AI_MODES[modeId];
-    await createSession(`New ${mode.label} Chat`, modeId);
+    createSession(`New ${mode.label} Chat`, modeId);
   };
 
   return (
     <div className="space-y-2 p-4" data-testid="mode-switcher">
-      <div className="text-text-muted text-xs uppercase tracking-wider mb-3">
-        AI Mode
-      </div>
+      <div className="text-text-muted text-xs uppercase tracking-wider mb-3">AI Mode</div>
       {Object.values(AI_MODES).map((mode) => {
         const IconComponent = Icons[mode.icon];
         const isActive = currentMode === mode.id;
-        
         return (
           <button
             key={mode.id}
@@ -42,12 +39,12 @@ export default function ModeSwitcher() {
             }}
           >
             {IconComponent && (
-              <IconComponent 
-                size={18} 
+              <IconComponent
+                size={18}
                 style={{ color: isActive ? mode.color : 'var(--text-secondary)' }}
               />
             )}
-            <span 
+            <span
               className={`text-sm ${
                 isActive ? 'text-text-primary font-medium' : 'text-text-secondary'
               }`}

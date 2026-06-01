@@ -1,132 +1,138 @@
 import { create } from 'zustand';
-import axios from 'axios';
+import { persist } from 'zustand/middleware';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+// Sessions + messages live entirely in localStorage. Single-user only.
+export const useSessionStore = create(
+  persist(
+    (set, get) => ({
+      sessions: [],         // [{id, title, mode, pinned, createdAt, updatedAt}]
+      messagesBySession: {}, // {sessionId: [{id, role, content, mode, provider, model, tokens, createdAt}]}
+      currentSessionId: null,
 
-export const useSessionStore = create((set, get) => ({
-  sessions: [],
-  currentSession: null,
-  messages: [],
-  loading: false,
-  error: null,
+      get currentSession() {
+        const id = get().currentSessionId;
+        return get().sessions.find((s) => s.id === id) || null;
+      },
 
-  fetchSessions: async () => {
-    set({ loading: true, error: null });
-    try {
-      const response = await axios.get(`${API}/sessions`);
-      set({ sessions: response.data, loading: false });
-    } catch (error) {
-      set({ error: error.message, loading: false });
-    }
-  },
-
-  createSession: async (title, mode = 'general') => {
-    set({ loading: true, error: null });
-    try {
-      const response = await axios.post(`${API}/sessions`, { title, mode });
-      const newSession = response.data;
-      set({ 
-        sessions: [newSession, ...get().sessions], 
-        currentSession: newSession,
-        messages: [],
-        loading: false 
-      });
-      return newSession;
-    } catch (error) {
-      set({ error: error.message, loading: false });
-      throw error;
-    }
-  },
-
-  setCurrentSession: async (sessionId) => {
-    set({ loading: true, error: null });
-    try {
-      const response = await axios.get(`${API}/sessions/${sessionId}`);
-      const messagesResponse = await axios.get(`${API}/sessions/${sessionId}/messages`);
-      set({ 
-        currentSession: response.data, 
-        messages: messagesResponse.data,
-        loading: false 
-      });
-    } catch (error) {
-      set({ error: error.message, loading: false });
-    }
-  },
-
-  updateSession: async (sessionId, updates) => {
-    try {
-      const params = new URLSearchParams();
-      if (updates.title) params.append('title', updates.title);
-      if (updates.pinned !== undefined) params.append('pinned', updates.pinned);
-      
-      await axios.patch(`${API}/sessions/${sessionId}?${params.toString()}`);
-      
-      set({
-        sessions: get().sessions.map(s => 
-          s.id === sessionId ? { ...s, ...updates } : s
-        ),
-        currentSession: get().currentSession?.id === sessionId 
-          ? { ...get().currentSession, ...updates } 
-          : get().currentSession
-      });
-    } catch (error) {
-      console.error('Error updating session:', error);
-    }
-  },
-
-  deleteSession: async (sessionId) => {
-    try {
-      await axios.delete(`${API}/sessions/${sessionId}`);
-      set({ 
-        sessions: get().sessions.filter(s => s.id !== sessionId),
-        currentSession: get().currentSession?.id === sessionId ? null : get().currentSession,
-        messages: get().currentSession?.id === sessionId ? [] : get().messages
-      });
-    } catch (error) {
-      console.error('Error deleting session:', error);
-    }
-  },
-
-  addMessage: (message) => {
-    set({ messages: [...get().messages, message] });
-  },
-
-  updateLastMessage: (content) => {
-    const messages = get().messages;
-    if (messages.length > 0) {
-      const lastMessage = messages[messages.length - 1];
-      if (lastMessage.role === 'assistant') {
+      createSession: (title, mode = 'general') => {
+        const now = Date.now();
+        const session = {
+          id: crypto.randomUUID(),
+          title,
+          mode,
+          pinned: false,
+          createdAt: now,
+          updatedAt: now,
+        };
         set({
-          messages: [
-            ...messages.slice(0, -1),
-            { ...lastMessage, content: lastMessage.content + content }
-          ]
+          sessions: [session, ...get().sessions],
+          messagesBySession: { ...get().messagesBySession, [session.id]: [] },
+          currentSessionId: session.id,
         });
-      }
-    }
-  },
+        return session;
+      },
 
-  exportSession: async (sessionId, format = 'md') => {
-    try {
-      const response = await axios.post(`${API}/chat/export`, {
-        session_id: sessionId,
-        format
-      });
-      
-      // Download file
-      const blob = new Blob([response.data.content], { 
-        type: format === 'md' ? 'text/markdown' : 'text/plain' 
-      });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = response.data.filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (error) {
-      console.error('Error exporting session:', error);
-    }
-  },
-}));
+      setCurrentSession: (id) => {
+        set({ currentSessionId: id });
+      },
+
+      updateSession: (id, patch) => {
+        set({
+          sessions: get().sessions.map((s) =>
+            s.id === id ? { ...s, ...patch, updatedAt: Date.now() } : s
+          ),
+        });
+      },
+
+      deleteSession: (id) => {
+        const { [id]: _, ...rest } = get().messagesBySession;
+        set({
+          sessions: get().sessions.filter((s) => s.id !== id),
+          messagesBySession: rest,
+          currentSessionId: get().currentSessionId === id ? null : get().currentSessionId,
+        });
+      },
+
+      getMessages: (sessionId) => get().messagesBySession[sessionId] || [],
+
+      addMessage: (sessionId, message) => {
+        const full = {
+          id: crypto.randomUUID(),
+          createdAt: Date.now(),
+          ...message,
+        };
+        const list = get().messagesBySession[sessionId] || [];
+        set({
+          messagesBySession: {
+            ...get().messagesBySession,
+            [sessionId]: [...list, full],
+          },
+        });
+        // touch session updatedAt
+        get().updateSession(sessionId, {});
+        return full;
+      },
+
+      updateMessage: (sessionId, messageId, patch) => {
+        const list = get().messagesBySession[sessionId] || [];
+        set({
+          messagesBySession: {
+            ...get().messagesBySession,
+            [sessionId]: list.map((m) => (m.id === messageId ? { ...m, ...patch } : m)),
+          },
+        });
+      },
+
+      appendToMessage: (sessionId, messageId, chunk) => {
+        const list = get().messagesBySession[sessionId] || [];
+        set({
+          messagesBySession: {
+            ...get().messagesBySession,
+            [sessionId]: list.map((m) =>
+              m.id === messageId ? { ...m, content: m.content + chunk } : m
+            ),
+          },
+        });
+      },
+
+      // Export everything (sessions + messages) as JSON string
+      exportAll: () => {
+        const data = {
+          version: 1,
+          exportedAt: new Date().toISOString(),
+          sessions: get().sessions,
+          messagesBySession: get().messagesBySession,
+        };
+        return JSON.stringify(data, null, 2);
+      },
+
+      // Import from JSON (merges; existing IDs are kept, new ones added)
+      importFromJSON: (json) => {
+        const data = typeof json === 'string' ? JSON.parse(json) : json;
+        if (!data.sessions || !data.messagesBySession) {
+          throw new Error('Invalid NEXUS export file.');
+        }
+        const existingIds = new Set(get().sessions.map((s) => s.id));
+        const newSessions = data.sessions.filter((s) => !existingIds.has(s.id));
+        set({
+          sessions: [...newSessions, ...get().sessions],
+          messagesBySession: { ...data.messagesBySession, ...get().messagesBySession },
+        });
+        return newSessions.length;
+      },
+
+      exportSessionMarkdown: (sessionId) => {
+        const session = get().sessions.find((s) => s.id === sessionId);
+        if (!session) return null;
+        const messages = get().messagesBySession[sessionId] || [];
+        let out = `# ${session.title}\n\nMode: ${session.mode}\n\n---\n\n`;
+        for (const m of messages) {
+          const label = m.role === 'user' ? '**You:**' : '**AI:**';
+          out += `${label}\n\n${m.content}\n\n---\n\n`;
+        }
+        return { content: out, filename: `${session.title}.md` };
+      },
+    }),
+    { name: 'nexus.sessions' }
+  )
+);

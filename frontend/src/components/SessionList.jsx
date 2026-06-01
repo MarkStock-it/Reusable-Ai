@@ -1,42 +1,32 @@
-import React, { useEffect, useState } from 'react';
-import { useSessionStore } from '../stores/sessionStore';
+import React, { useState } from 'react';
+import { useSessionStore } from '../stores/sessionStore.js';
 import { Search, Pin, Trash2, Edit2, Check, X } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 export default function SessionList() {
-  const { sessions, currentSession, setCurrentSession, deleteSession, updateSession, fetchSessions } = useSessionStore();
+  const sessions = useSessionStore((s) => s.sessions);
+  const currentSessionId = useSessionStore((s) => s.currentSessionId);
+  const setCurrentSession = useSessionStore((s) => s.setCurrentSession);
+  const deleteSession = useSessionStore((s) => s.deleteSession);
+  const updateSession = useSessionStore((s) => s.updateSession);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
 
-  useEffect(() => {
-    fetchSessions();
-  }, [fetchSessions]);
+  const filteredSessions = sessions
+    .filter((s) => s.title.toLowerCase().includes(searchTerm.toLowerCase()))
+    .sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return b.updatedAt - a.updatedAt;
+    });
 
-  const filteredSessions = sessions.filter(s => 
-    s.title.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const handleEditStart = (session) => {
-    setEditingId(session.id);
-    setEditTitle(session.title);
-  };
-
-  const handleEditSave = async () => {
-    if (editTitle.trim()) {
-      await updateSession(editingId, { title: editTitle });
-    }
+  const handleEditSave = () => {
+    if (editTitle.trim()) updateSession(editingId, { title: editTitle.trim() });
     setEditingId(null);
-  };
-
-  const handleEditCancel = () => {
-    setEditingId(null);
-    setEditTitle('');
   };
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden" data-testid="session-list">
-      {/* Search */}
       <div className="p-4 border-b border-white/5">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={16} />
@@ -54,7 +44,6 @@ export default function SessionList() {
         </div>
       </div>
 
-      {/* Session List */}
       <div className="flex-1 overflow-y-auto p-2">
         {filteredSessions.length === 0 ? (
           <div className="text-center text-text-muted text-sm py-8">
@@ -63,7 +52,7 @@ export default function SessionList() {
         ) : (
           <div className="space-y-1">
             {filteredSessions.map((session) => {
-              const isActive = currentSession?.id === session.id;
+              const isActive = currentSessionId === session.id;
               const isEditing = editingId === session.id;
 
               return (
@@ -89,20 +78,17 @@ export default function SessionList() {
                         onChange={(e) => setEditTitle(e.target.value)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') handleEditSave();
-                          if (e.key === 'Escape') handleEditCancel();
+                          if (e.key === 'Escape') setEditingId(null);
                         }}
                         className="flex-1 bg-background px-2 py-1 rounded text-sm
                           text-text-primary outline-none border border-primary/30"
                         autoFocus
                       />
-                      <button
-                        onClick={handleEditSave}
-                        className="p-1 hover:bg-primary/20 rounded"
-                      >
+                      <button onClick={handleEditSave} className="p-1 hover:bg-primary/20 rounded">
                         <Check size={14} className="text-primary" />
                       </button>
                       <button
-                        onClick={handleEditCancel}
+                        onClick={() => setEditingId(null)}
                         className="p-1 hover:bg-elevated rounded"
                       >
                         <X size={14} className="text-text-muted" />
@@ -116,16 +102,14 @@ export default function SessionList() {
                             {session.title}
                           </div>
                           <div className="text-xs text-text-muted mt-1">
-                            {formatDistanceToNow(new Date(session.updated_at), { addSuffix: true })}
+                            {formatDistanceToNow(new Date(session.updatedAt), { addSuffix: true })}
                           </div>
                         </div>
-                        {session.pinned && (
-                          <Pin size={14} className="text-primary flex-shrink-0" />
-                        )}
+                        {session.pinned && <Pin size={14} className="text-primary flex-shrink-0" />}
                       </div>
 
-                      {/* Actions */}
-                      <div className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                      <div
+                        className="absolute top-3 right-3 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
                         onClick={(e) => e.stopPropagation()}
                       >
                         <button
@@ -134,10 +118,16 @@ export default function SessionList() {
                           data-testid={`pin-session-${session.id}`}
                           title={session.pinned ? 'Unpin' : 'Pin'}
                         >
-                          <Pin size={14} className={session.pinned ? 'text-primary' : 'text-text-muted'} />
+                          <Pin
+                            size={14}
+                            className={session.pinned ? 'text-primary' : 'text-text-muted'}
+                          />
                         </button>
                         <button
-                          onClick={() => handleEditStart(session)}
+                          onClick={() => {
+                            setEditingId(session.id);
+                            setEditTitle(session.title);
+                          }}
                           className="p-1.5 hover:bg-background rounded"
                           data-testid={`edit-session-${session.id}`}
                           title="Rename"

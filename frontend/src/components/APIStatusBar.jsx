@@ -1,28 +1,39 @@
 import React, { useEffect } from 'react';
-import { useStatusStore } from '../stores/statusStore';
-import { useKeysStore } from '../stores/keysStore';
+import { useStatusStore } from '../stores/statusStore.js';
+import { useKeysStore } from '../stores/keysStore.js';
+import { PROVIDERS } from '../api/providers.js';
 
 export default function APIStatusBar() {
-  const { currentProvider, currentKeyLabel, tokensUsed, isStreaming, setStatus } = useStatusStore();
-  const { keys } = useKeysStore();
+  const currentProvider = useStatusStore((s) => s.currentProvider);
+  const currentKeyLabel = useStatusStore((s) => s.currentKeyLabel);
+  const tokensUsed = useStatusStore((s) => s.tokensUsed);
+  const isStreaming = useStatusStore((s) => s.isStreaming);
+  const setStatus = useStatusStore((s) => s.setStatus);
 
-  // Initialize status with first active key on load
+  const keys = useKeysStore((s) => s.keys);
+
+  // Initialise with the first active key on load so the bar isn't empty
   useEffect(() => {
     if (!currentProvider && keys.length > 0) {
-      const activeKey = keys.find(k => k.status === 'active');
-      if (activeKey) {
-        setStatus(activeKey.provider, activeKey.label, activeKey.id);
-      }
+      const activeKey = keys.find((k) => k.status === 'active');
+      if (activeKey) setStatus(activeKey.provider, activeKey.label, activeKey.id);
     }
   }, [keys, currentProvider, setStatus]);
 
-  const getStatusDotColor = () => {
-    if (!currentProvider) return '#3d3b52'; // muted
-    if (isStreaming) return '#4ade80'; // green
-    return '#a78bfa'; // violet
-  };
+  const activeKey = keys.find((k) => k.label === currentKeyLabel);
+  const dotColor = !currentProvider
+    ? '#3d3b52'
+    : isStreaming
+    ? '#4ade80'
+    : activeKey?.status === 'rate_limited'
+    ? '#fbbf24'
+    : activeKey?.status === 'error'
+    ? '#f87171'
+    : '#a78bfa';
 
-  const activeKey = keys.find(k => k.label === currentKeyLabel);
+  const providerLabel = currentProvider
+    ? (PROVIDERS[currentProvider]?.label || currentProvider).toUpperCase()
+    : 'NO PROVIDER';
 
   return (
     <div
@@ -30,21 +41,17 @@ export default function APIStatusBar() {
       data-testid="api-status-bar"
     >
       <div className="flex items-center gap-3 text-text-secondary">
-        {/* Status Dot */}
         <div className="flex items-center gap-2">
           <div
             className="w-2 h-2 rounded-full transition-all"
-            style={{ 
-              backgroundColor: getStatusDotColor(),
-              boxShadow: isStreaming ? `0 0 8px ${getStatusDotColor()}` : 'none'
+            style={{
+              backgroundColor: dotColor,
+              boxShadow: isStreaming ? `0 0 8px ${dotColor}` : 'none',
             }}
           />
-          <span className="uppercase tracking-wider">
-            {currentProvider || 'No provider'}
-          </span>
+          <span className="uppercase tracking-wider">{providerLabel}</span>
         </div>
 
-        {/* Key Label */}
         {currentKeyLabel && (
           <>
             <span>·</span>
@@ -52,7 +59,6 @@ export default function APIStatusBar() {
           </>
         )}
 
-        {/* Status */}
         {activeKey?.status === 'rate_limited' && (
           <>
             <span>·</span>
@@ -60,13 +66,9 @@ export default function APIStatusBar() {
           </>
         )}
 
-        {/* Tokens */}
-        <>
-          <span>·</span>
-          <span>{tokensUsed.toLocaleString()} tokens used</span>
-        </>
+        <span>·</span>
+        <span>{tokensUsed.toLocaleString()} tokens used</span>
 
-        {/* Streaming indicator */}
         {isStreaming && (
           <>
             <span>·</span>

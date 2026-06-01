@@ -1,56 +1,75 @@
 import { create } from 'zustand';
-import axios from 'axios';
+import { persist } from 'zustand/middleware';
+import { detectProvider, maskKey } from '../api/providers';
+import { COOLDOWN_MS } from '../api/rotationEngine';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+// All API keys live in localStorage (plaintext, single-user solo app).
+export const useKeysStore = create(
+  persist(
+    (set, get) => ({
+      keys: [],
 
-export const useKeysStore = create((set, get) => ({
-  keys: [],
-  loading: false,
-  error: null,
+      addKey: (label, value) => {
+        const provider = detectProvider(value);
+        if (provider === 'unknown') {
+          throw new Error('Could not detect provider from key prefix.');
+        }
+        const newKey = {
+          id: crypto.randomUUID(),
+          label: label.trim(),
+          provider,
+          value,
+          masked: maskKey(value),
+          status: 'active',
+          rateLimitUntil: null,
+          lastError: null,
+          lastUsed: null,
+          createdAt: Date.now(),
+        };
+        set({ keys: [...get().keys, newKey] });
+        return newKey;
+      },
 
-  fetchKeys: async () => {
-    set({ loading: true, error: null });
-    try {
-      const response = await axios.get(`${API}/keys`);
-      set({ keys: response.data, loading: false });
-    } catch (error) {
-      set({ error: error.message, loading: false });
-    }
-  },
+      deleteKey: (id) => {
+        set({ keys: get().keys.filter((k) => k.id !== id) });
+      },
 
-  addKey: async (label, key) => {
-    set({ loading: true, error: null });
-    try {
-      const response = await axios.post(`${API}/keys`, { label, key });
-      set({ keys: [...get().keys, response.data], loading: false });
-      return response.data;
-    } catch (error) {
-      set({ error: error.message, loading: false });
-      throw error;
-    }
-  },
+      markRateLimited: (id) => {
+        set({
+          keys: get().keys.map((k) =>
+            k.id === id
+              ? { ...k, status: 'rate_limited', rateLimitUntil: Date.now() + COOLDOWN_MS }
+              : k
+          ),
+        });
+      },
 
-  deleteKey: async (keyId) => {
-    set({ loading: true, error: null });
-    try {
-      await axios.delete(`${API}/keys/${keyId}`);
-      set({ keys: get().keys.filter(k => k.id !== keyId), loading: false });
-    } catch (error) {
-      set({ error: error.message, loading: false });
-      throw error;
-    }
-  },
+      markError: (id, message) => {
+        set({
+          keys: get().keys.map((k) =>
+            k.id === id ? { ...k, status: 'error', lastError: message } : k
+          ),
+        });
+      },
 
-  updateKeyStatus: async (keyId, status) => {
-    try {
-      await axios.patch(`${API}/keys/${keyId}/status?status=${status}`);
-      set({
-        keys: get().keys.map(k => 
-          k.id === keyId ? { ...k, status } : k
-        )
-      });
-    } catch (error) {
-      console.error('Error updating key status:', error);
-    }
-  },
-}));
+      markActive: (id) => {
+        set({
+          keys: get().keys.map((k) =>
+            k.id === id ? { ...k, status: 'active', rateLimitUntil: null, lastError: null } : k
+          ),
+        });
+      },
+
+      updateLastUsed: (id) => {
+        set({
+          keys: get().keys.map((k) =>
+            k.id === id ? { ...k, lastUsed: Date.now() } : k
+          ),
+        });
+      },
+
+      replaceAll: (keys) => set({ keys }),
+    }),
+    { name: 'nexus.keys' }
+  )
+);

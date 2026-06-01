@@ -1,73 +1,57 @@
-# NEXUS - Multi-Provider AI Hub
+# NEXUS — Multi-Provider AI Hub (v2: Pure Client-Side)
 
 ## Original Problem Statement
-Build a fullstack AI chat environment called "NEXUS" — a smart, multi-provider AI hub that automatically rotates through a user-defined list of API keys when rate limits are hit. The user selects an "AI Mode" before chatting; each mode has a pre-baked system prompt and specialized UI.
+Build a fullstack AI chat environment ("NEXUS") with multi-provider AI rotation, mode-switched UX. After v1 MVP shipped, user requested **a complete rewrite to pure client-side** so it runs locally and on GitHub Pages with no server.
 
-## Architecture
-- **Frontend**: React + Tailwind + Zustand (state) + react-markdown + react-syntax-highlighter
-- **Backend**: FastAPI + MongoDB (via Motor async driver)
-- **AI Integration**: emergentintegrations library (OpenAI, Anthropic, Gemini) + httpx (Groq, Mistral, Cohere)
-- **Security**: AES (Fernet) encryption for API keys at rest
+## Architecture (v2)
+- **Pure client-side React + Vite** — no backend
+- All state in `localStorage` via Zustand `persist` middleware (`nexus.keys`, `nexus.sessions`)
+- Client-side API rotation engine in `src/api/rotationEngine.js` calls providers directly via `fetch`
+- 6 providers: OpenAI, Anthropic, Gemini, Groq, Mistral, Cohere — all browser-direct
+- GitHub Actions workflow at `.github/workflows/deploy.yml` auto-deploys to GitHub Pages on push to `main`
+- Legacy `/app/backend/` reduced to a 12-line FastAPI stub so the Emergent supervisor (read-only config) doesn't crash-loop; user deletes the folder when pushing to their GitHub repo
 
-## User Personas
-- Power user with multiple AI provider API keys who needs failover/rotation
-- Developer using AI for coding, writing, research across different modes
-- Researcher who needs structured analysis and study assistance
+## What's Been Implemented (2026-06-01)
 
-## Core Requirements (Static)
-1. API Key Manager — add/list/delete keys, auto-detect provider from prefix, AES encryption
-2. API Rotation Engine — 429 detection → 60s cooldown → auto retry next key
-3. 6 AI Modes — General, Code, Render, Study, Analyze, Creative (each with hidden system prompt)
-4. Streaming Chat — SSE-based streaming with markdown + syntax highlighting
-5. Session Management — create/rename/pin/delete, search, persistent message history
-6. Status Bar — live provider/key/token indicator
-7. Export — markdown/text export of conversations
-8. Dark Luxury UI — violet aurora aesthetic, glassmorphism, monospace status bar
+### Migration v1 → v2
+- ✅ Deleted FastAPI backend (routes, rotation engine, encryption, models, tests) — kept a 12-line stub for supervisor only
+- ✅ Migrated frontend from CRA/craco → Vite 6
+- ✅ Removed all axios calls and `process.env.REACT_APP_BACKEND_URL` references
+- ✅ Removed unused shadcn `components/ui/` and `lib/` folders (dead code)
+- ✅ Removed CRA artefacts: `build/`, `components.json`, `jsconfig.json`, generic README, webpack health plugin
 
-## What's Been Implemented (2026-05-27)
-### Backend
-- ✅ Full MongoDB persistence (api_keys, sessions, messages collections)
-- ✅ AES-Fernet encryption for stored API keys (`encryption.py`)
-- ✅ Auto provider detection from key prefix (`provider_detection.py`)
-  - sk-ant- → anthropic, AIza → gemini, gsk_ → groq, sk- → openai, mistral_ → mistral, co- → cohere
-- ✅ Universal Emergent key recognized as `emergent` provider
-- ✅ API rotation engine with 60s cooldown on 429 (`rotation_engine.py`)
-- ✅ Streaming `/api/chat/stream` (SSE)
-- ✅ CRUD: `/api/keys`, `/api/sessions`, `/api/sessions/{id}/messages`
-- ✅ Export: `/api/chat/export` (md / txt)
-- ✅ 19/19 pytest tests passing
+### New Client-Side Stack
+- ✅ `src/api/providers.js` — provider detection (prefix-based: sk-ant- → Anthropic, AIza → Gemini, gsk_ → Groq, sk- → OpenAI, mistral_ → Mistral, co- → Cohere), per-provider `buildChatRequest()` (OpenAI/Groq/Mistral OpenAI-compat, Anthropic with `anthropic-dangerous-direct-browser-access: true`, Gemini `streamGenerateContent?alt=sse`, Cohere v2), per-format `parseChunk()` for SSE deltas
+- ✅ `src/api/rotationEngine.js` — async generator: tries active keys in order, 429 → 60s cooldown → next key, ReadableStream-based SSE parsing, emits `status`/`content`/`done`/`retry`/`error` chunks
+- ✅ `keysStore.js` with `persist` to `nexus.keys` localStorage
+- ✅ `sessionStore.js` with `persist` to `nexus.sessions` — sessions + messagesBySession dictionary + export/import helpers
 
-### Frontend
-- ✅ Layout: 260px sidebar + main canvas + 28px status bar (no card-heavy feel)
-- ✅ Mode Switcher (6 modes, color-coded, soft violet pill on active)
-- ✅ Session List (search, rename, pin, delete, hover-revealed actions)
-- ✅ Chat Canvas (max-width 780px centered, user right / AI left, no AI background)
-- ✅ Chat Input (pill-shaped, violet focus glow, aurora gradient send button)
-- ✅ Settings Drawer (glassmorphism, add/list/delete keys, provider auto-detect badge)
-- ✅ API Status Bar (live provider, key label, tokens, animated dot)
-- ✅ Markdown rendering with code syntax highlighting + copy code button + language badge
-- ✅ Simulated streaming UX (chunked output from non-streaming send_message)
-- ✅ Export conversation as markdown
-- ✅ Lora serif font swap for Creative mode
+### New UX
+- ✅ Sidebar now has: API Keys / Export Chat (.md) / **Backup All (.json)** / **Import Backup** buttons
+- ✅ Pinned sessions sort to top of session list
+- ✅ Graceful no-key state: input placeholder switches to "Add an API key in Settings to start chatting..."
+- ✅ All other UX (6 modes, mode glow, status bar with green/amber/red dot, syntax highlighting, copy-code button) preserved from v1
 
-### Verified Flows
-- Add API key (Emergent universal key) → auto-detected as `emergent`
-- Send chat in General mode → streamed response with markdown
-- Switch to Code mode → response includes syntax-highlighted code block
-- Status bar updates live to show `EMERGENT · Emergent Universal Key · N tokens used`
-- Session creation/listing/deletion all functional via UI
+### GitHub Pages Deployment
+- ✅ `.github/workflows/deploy.yml` — checkout, yarn install with cache, `BASE_URL=/<repo>/ yarn build`, upload + deploy to Pages
+- ✅ `vite.config.js` reads `process.env.BASE_URL` so the same workflow works for any repo name
+- ✅ `README.md` rewritten with run-locally + GitHub Pages instructions
 
-## Known Deferrals (P1/P2)
-- P1: Rate-limit dashboard view (currently surfaced via key status in drawer only)
-- P1: System prompt override input in settings (mentioned in spec as nice-to-have)
-- P1: Light/dark theme toggle (dark is the only theme, per design spec)
-- P2: Token usage estimator per message (only running total in status bar)
-- P2: Streaming via actual provider streaming APIs (Groq/Mistral implemented; emergentintegrations chunked client-side because library lacks native stream)
-- P2: Mode-specific UI extras (Study "Key Takeaways" panel, Analyze collapsible outline panel) — currently same rendering for all non-Creative modes
+### Verification
+- ✅ Vite dev server running on port 3000 (supervised by Emergent supervisor, `yarn start` → vite)
+- ✅ Production build succeeds: 3199 modules → 484 KB gzipped JS, asset paths prefixed correctly with `BASE_URL`
+- ✅ Lint clean across all `src/` files
+- ✅ E2E sanity: 3 sessions created from mode clicks, persisted in localStorage, sidebar reactive, status bar shows correct empty state
+
+## Known Limitations
+- OpenAI/Anthropic browser-direct calls work but expose keys in client memory (user explicitly accepted this trade-off — solo single-user app)
+- Token counts are byte-length/4 estimates, not exact provider counts
+- No streaming-cancel button (would need exposing the AbortController to UI)
+- Model selection is per-provider default — no UI for picking specific models yet
 
 ## Backlog
-- P0: ~~All 6 providers wiring (Gemini/Groq/Mistral/Cohere HTTP paths)~~ — done in code, untested live (no user keys provided)
-- P1: Add system prompt override input
-- P1: Rate limit dashboard tab
-- P2: Mode-specific response decorations (takeaways, outline panel)
+- P1: Model picker dropdown per provider (e.g. let user choose `gpt-4o` vs `gpt-4o-mini`)
+- P1: Cancel-streaming button wired to the `AbortController`
+- P1: System Prompt Override input
+- P2: Rate Limit dashboard tab showing all keys + cooldown timers
 - P2: Light theme toggle

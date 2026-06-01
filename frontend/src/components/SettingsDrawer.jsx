@@ -1,83 +1,62 @@
-import React, { useState, useEffect } from 'react';
-import { useKeysStore } from '../stores/keysStore';
+import React, { useState } from 'react';
+import { useKeysStore } from '../stores/keysStore.js';
+import { PROVIDERS } from '../api/providers.js';
 import { X, Plus, Trash2, AlertCircle, CheckCircle, Clock } from 'lucide-react';
 
 export default function SettingsDrawer({ isOpen, onClose }) {
-  const { keys, loading, error, fetchKeys, addKey, deleteKey } = useKeysStore();
+  const keys = useKeysStore((s) => s.keys);
+  const addKey = useKeysStore((s) => s.addKey);
+  const deleteKey = useKeysStore((s) => s.deleteKey);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [newKey, setNewKey] = useState('');
   const [addError, setAddError] = useState(null);
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchKeys();
-    }
-  }, [isOpen, fetchKeys]);
-
-  const handleAddKey = async (e) => {
+  const handleAddKey = (e) => {
     e.preventDefault();
     setAddError(null);
-
     if (!newLabel.trim() || !newKey.trim()) {
-      setAddError('Please fill in all fields');
+      setAddError('Please fill in both fields.');
       return;
     }
-
     try {
-      await addKey(newLabel, newKey);
+      addKey(newLabel, newKey);
       setNewLabel('');
       setNewKey('');
       setShowAddForm(false);
-    } catch (error) {
-      setAddError(error.message || 'Failed to add API key');
+    } catch (err) {
+      setAddError(err.message || 'Could not add key');
     }
   };
 
-  const getStatusIcon = (status) => {
-    switch (status) {
-      case 'active':
-        return <CheckCircle size={16} className="text-green-400" />;
-      case 'rate_limited':
-        return <Clock size={16} className="text-amber-400" />;
-      case 'error':
-        return <AlertCircle size={16} className="text-red-400" />;
-      default:
-        return null;
-    }
+  const statusIcon = (status) => {
+    if (status === 'active') return <CheckCircle size={16} className="text-green-400" />;
+    if (status === 'rate_limited') return <Clock size={16} className="text-amber-400" />;
+    if (status === 'error') return <AlertCircle size={16} className="text-red-400" />;
+    return null;
   };
 
-  const getStatusLabel = (status) => {
-    switch (status) {
-      case 'active':
-        return 'Active';
-      case 'rate_limited':
-        return 'Rate Limited';
-      case 'error':
-        return 'Error';
-      default:
-        return status;
-    }
+  const statusLabel = (status) => {
+    if (status === 'active') return 'Active';
+    if (status === 'rate_limited') return 'Rate Limited';
+    if (status === 'error') return 'Error';
+    return status;
   };
 
   if (!isOpen) return null;
 
   return (
     <>
-      {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
         onClick={onClose}
         data-testid="settings-backdrop"
       />
-
-      {/* Drawer */}
       <div
         className="fixed right-0 top-0 bottom-0 w-[420px] bg-surface/95 backdrop-blur-xl
           border-l border-white/5 z-50 overflow-y-auto"
         data-testid="settings-drawer"
       >
-        {/* Header */}
         <div className="sticky top-0 bg-surface/95 backdrop-blur-xl border-b border-white/5 p-6 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-text-primary">API Keys</h2>
           <button
@@ -89,9 +68,7 @@ export default function SettingsDrawer({ isOpen, onClose }) {
           </button>
         </div>
 
-        {/* Content */}
         <div className="p-6 space-y-6">
-          {/* Add Key Button */}
           {!showAddForm && (
             <button
               onClick={() => setShowAddForm(true)}
@@ -105,13 +82,10 @@ export default function SettingsDrawer({ isOpen, onClose }) {
             </button>
           )}
 
-          {/* Add Key Form */}
           {showAddForm && (
             <form onSubmit={handleAddKey} className="space-y-4 p-4 bg-elevated rounded-lg border border-white/5">
               <div>
-                <label className="block text-sm text-text-secondary mb-2">
-                  Label
-                </label>
+                <label className="block text-sm text-text-secondary mb-2">Label</label>
                 <input
                   type="text"
                   value={newLabel}
@@ -124,16 +98,13 @@ export default function SettingsDrawer({ isOpen, onClose }) {
                     outline-none transition-all"
                 />
               </div>
-
               <div>
-                <label className="block text-sm text-text-secondary mb-2">
-                  API Key
-                </label>
+                <label className="block text-sm text-text-secondary mb-2">API Key</label>
                 <input
                   type="password"
                   value={newKey}
                   onChange={(e) => setNewKey(e.target.value)}
-                  placeholder="sk-..."
+                  placeholder="sk-... / AIza... / gsk_... / sk-ant-... / co-..."
                   data-testid="key-value-input"
                   className="w-full bg-background px-4 py-2 rounded-lg font-mono text-sm
                     text-text-primary placeholder-text-muted
@@ -141,14 +112,12 @@ export default function SettingsDrawer({ isOpen, onClose }) {
                     outline-none transition-all"
                 />
               </div>
-
               {addError && (
                 <div className="text-sm text-red-400 flex items-center gap-2">
                   <AlertCircle size={16} />
                   {addError}
                 </div>
               )}
-
               <div className="flex gap-2">
                 <button
                   type="submit"
@@ -176,18 +145,8 @@ export default function SettingsDrawer({ isOpen, onClose }) {
             </form>
           )}
 
-          {/* Error Message */}
-          {error && (
-            <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">
-              {error}
-            </div>
-          )}
-
-          {/* Keys List */}
           <div className="space-y-3">
-            {loading && keys.length === 0 ? (
-              <div className="text-center py-8 text-text-muted">Loading keys...</div>
-            ) : keys.length === 0 ? (
+            {keys.length === 0 ? (
               <div className="text-center py-8 text-text-muted">
                 No API keys configured yet
               </div>
@@ -200,11 +159,9 @@ export default function SettingsDrawer({ isOpen, onClose }) {
                 >
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1">
-                      <div className="font-medium text-text-primary mb-1">
-                        {key.label}
-                      </div>
+                      <div className="font-medium text-text-primary mb-1">{key.label}</div>
                       <div className="text-xs text-text-muted uppercase tracking-wider">
-                        {key.provider}
+                        {PROVIDERS[key.provider]?.label || key.provider}
                       </div>
                     </div>
                     <button
@@ -218,18 +175,24 @@ export default function SettingsDrawer({ isOpen, onClose }) {
                   </div>
 
                   <div className="flex items-center justify-between text-sm">
-                    <code className="text-text-muted font-mono">{key.masked_key}</code>
+                    <code className="text-text-muted font-mono">{key.masked}</code>
                     <div className="flex items-center gap-1.5">
-                      {getStatusIcon(key.status)}
+                      {statusIcon(key.status)}
                       <span className="text-text-secondary text-xs">
-                        {getStatusLabel(key.status)}
+                        {statusLabel(key.status)}
                       </span>
                     </div>
                   </div>
 
-                  {key.last_used && (
+                  {key.lastError && (
+                    <div className="mt-2 text-xs text-red-400/80 line-clamp-2">
+                      {key.lastError}
+                    </div>
+                  )}
+
+                  {key.lastUsed && (
                     <div className="mt-2 text-xs text-text-muted">
-                      Last used: {new Date(key.last_used).toLocaleString()}
+                      Last used: {new Date(key.lastUsed).toLocaleString()}
                     </div>
                   )}
                 </div>
@@ -237,16 +200,15 @@ export default function SettingsDrawer({ isOpen, onClose }) {
             )}
           </div>
 
-          {/* Info */}
           <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg text-sm text-text-secondary">
             <p className="mb-2">
               <strong className="text-text-primary">How it works:</strong>
             </p>
             <ul className="space-y-1 text-xs list-disc list-inside">
-              <li>Keys are automatically detected by provider</li>
+              <li>Provider is auto-detected from key prefix</li>
               <li>System rotates through keys on rate limits</li>
               <li>Rate-limited keys cool down for 60 seconds</li>
-              <li>All keys are encrypted in the database</li>
+              <li>Keys are stored in your browser&apos;s localStorage</li>
             </ul>
           </div>
         </div>
