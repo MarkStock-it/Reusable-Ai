@@ -49,8 +49,8 @@ export default function SessionList() {
           <div className="text-center text-text-muted text-sm py-8">
             {searchTerm ? 'No sessions found' : 'No sessions yet'}
           </div>
-        ) : (
-          <div className="space-y-1">
+          ) : (
+          <div className="space-y-3">
             {filteredSessions.map((session) => {
               const isActive = currentSessionId === session.id;
               const isEditing = editingId === session.id;

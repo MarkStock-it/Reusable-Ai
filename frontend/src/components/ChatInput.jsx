@@ -18,6 +18,7 @@ export default function ChatInput() {
 
   const currentMode = useModeStore((s) => s.currentMode);
   const getSystemPrompt = useModeStore((s) => s.getSystemPrompt);
+  const currentSession = useSessionStore((s) => s.currentSession);
 
   const keys = useKeysStore((s) => s.keys);
   const markRateLimited = useKeysStore((s) => s.markRateLimited);
@@ -66,6 +67,8 @@ export default function ChatInput() {
         onMarkError: markError,
         onMarkActive: markActive,
         onUpdateLastUsed: updateLastUsed,
+        targetProvider: currentSession?.provider,
+        targetModel: currentSession?.model,
       });
 
       for await (const chunk of stream) {

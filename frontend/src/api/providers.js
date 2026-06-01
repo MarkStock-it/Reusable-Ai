@@ -19,9 +19,9 @@ export const PROVIDERS = {
   },
   gemini: {
     label: 'Gemini',
-    detect: (k) => k.startsWith('AIza'),
-    baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
-    defaultModel: 'gemini-2.0-flash',
+    detect: (k) => k.startsWith('AIza') || k.startsWith('AQ'),
+    baseUrl: 'https://generativelanguage.googleapis.com/v1',
+    defaultModel: 'gemini-2.5-flash',
     color: '#4285f4',
   },
   groq: {
@@ -116,15 +116,18 @@ export function buildChatRequest({ provider, apiKey, model, systemPrompt, messag
 
   if (provider === 'gemini') {
     // Gemini uses a different request shape. We use streamGenerateContent with
-    // alt=sse for SSE-style streaming.
-    const contents = messages.map((m) => ({
-      role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }],
-    }));
-    const body = {
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      contents,
-    };
+    // alt=sse for SSE-style streaming. System instruction prepended to first user message.
+    const contents = messages.map((m, idx) => {
+      let text = m.content;
+      if (idx === 0 && m.role === 'user' && systemPrompt) {
+        text = `[System: ${systemPrompt}]\n\n${m.content}`;
+      }
+      return {
+        role: m.role === 'assistant' ? 'model' : 'user',
+        parts: [{ text }],
+      };
+    });
+    const body = { contents };
     return {
       url: `${cfg.baseUrl}/models/${useModel}:streamGenerateContent?alt=sse&key=${apiKey}`,
       headers: { 'Content-Type': 'application/json' },

@@ -27,9 +27,22 @@ export async function* chatWithRotation({
   onMarkActive,
   onUpdateLastUsed,
   signal,
+  targetProvider, // optional: only use keys for this provider
+  targetModel, // optional: preferred model for this chat
 }) {
   const now = Date.now();
-  const active = keys.filter((k) => {
+  // If a specific provider is requested, limit keys to that provider.
+  const providerKeys = targetProvider ? keys.filter((k) => k.provider === targetProvider) : keys;
+
+  if (targetProvider && providerKeys.length === 0) {
+    yield {
+      type: 'error',
+      content: `No API keys configured for provider: ${targetProvider}. Add a key in Settings.`,
+    };
+    return;
+  }
+
+  const active = providerKeys.filter((k) => {
     if (k.status === 'active') return true;
     if (k.status === 'rate_limited' && k.rateLimitUntil && k.rateLimitUntil < now) {
       onMarkActive(k.id);
@@ -37,6 +50,7 @@ export async function* chatWithRotation({
     }
     return false;
   });
+  
 
   if (active.length === 0) {
     yield {
@@ -58,7 +72,7 @@ export async function* chatWithRotation({
       const req = buildChatRequest({
         provider: key.provider,
         apiKey: key.value,
-        model: key.model || undefined,
+        model: targetModel || key.model || undefined,
         systemPrompt,
         messages,
       });
