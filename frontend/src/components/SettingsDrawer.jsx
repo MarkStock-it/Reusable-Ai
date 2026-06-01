@@ -1,12 +1,17 @@
 import React, { useState } from 'react';
 import { useKeysStore } from '../stores/keysStore.js';
 import { PROVIDERS } from '../api/providers.js';
-import { X, Plus, Trash2, AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { X, Plus, Trash2, AlertCircle, CheckCircle, Clock, RefreshCw } from 'lucide-react';
 
 export default function SettingsDrawer({ isOpen, onClose }) {
   const keys = useKeysStore((s) => s.keys);
   const addKey = useKeysStore((s) => s.addKey);
   const deleteKey = useKeysStore((s) => s.deleteKey);
+  const markActiveKey = useKeysStore((s) => s.markActive);
+  const markRateLimitedKey = useKeysStore((s) => s.markRateLimited);
+  const markErrorKey = useKeysStore((s) => s.markError);
+  const updateLastUsedKey = useKeysStore((s) => s.updateLastUsed);
+  const [testingKeyId, setTestingKeyId] = useState(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [newKey, setNewKey] = useState('');
@@ -26,6 +31,60 @@ export default function SettingsDrawer({ isOpen, onClose }) {
       setShowAddForm(false);
     } catch (err) {
       setAddError(err.message || 'Could not add key');
+    }
+  };
+
+  const testKey = async (key) => {
+    setTestingKeyId(key.id);
+    try {
+      let url = '';
+      const headers = {};
+
+      switch (key.provider) {
+        case 'gemini':
+          url = `${PROVIDERS.gemini.baseUrl}/models?key=${key.value}`;
+          break;
+        case 'openai':
+          url = `${PROVIDERS.openai.baseUrl}/models`;
+          headers['Authorization'] = `Bearer ${key.value}`;
+          break;
+        case 'cohere':
+          url = `${PROVIDERS.cohere.baseUrl}/models`;
+          headers['Authorization'] = `Bearer ${key.value}`;
+          break;
+        case 'groq':
+          url = `${PROVIDERS.groq.baseUrl}/models`;
+          headers['Authorization'] = `Bearer ${key.value}`;
+          break;
+        case 'mistral':
+          url = `${PROVIDERS.mistral.baseUrl}/models`;
+          headers['Authorization'] = `Bearer ${key.value}`;
+          break;
+        case 'anthropic':
+          url = `${PROVIDERS.anthropic.baseUrl}/models`;
+          headers['x-api-key'] = key.value;
+          break;
+        default:
+          // fallback: try provider base
+          url = `${PROVIDERS[key.provider]?.baseUrl || ''}`;
+      }
+
+      if (!url) throw new Error('No test endpoint available for this provider');
+
+      const res = await fetch(url, { method: 'GET', headers });
+      if (res.status === 429) {
+        markRateLimitedKey(key.id);
+      } else if (res.ok) {
+        markActiveKey(key.id);
+        updateLastUsedKey(key.id);
+      } else {
+        const text = await res.text();
+        markErrorKey(key.id, `${res.status}: ${text.slice(0, 200)}`);
+      }
+    } catch (err) {
+      markErrorKey(key.id, err.message);
+    } finally {
+      setTestingKeyId(null);
     }
   };
 
@@ -59,13 +118,23 @@ export default function SettingsDrawer({ isOpen, onClose }) {
       >
         <div className="sticky top-0 bg-surface/95 backdrop-blur-xl border-b border-white/5 p-6 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-text-primary">API Keys</h2>
-          <button
-            onClick={onClose}
-            data-testid="close-settings"
-            className="p-2 hover:bg-elevated rounded-lg transition-all"
-          >
-            <X size={20} className="text-text-secondary" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => keys.forEach((k) => markActiveKey(k.id))}
+              data-testid="unmark-all-keys"
+              className="px-3 py-2 bg-elevated/50 hover:bg-elevated rounded text-sm border border-white/5"
+              title="Clear rate limits/errors for all keys"
+            >
+              Unmark all
+            </button>
+            <button
+              onClick={onClose}
+              data-testid="close-settings"
+              className="p-2 hover:bg-elevated rounded-lg transition-all"
+            >
+              <X size={20} className="text-text-secondary" />
+            </button>
+          </div>
         </div>
 
         <div className="p-6 space-y-6">
@@ -172,6 +241,28 @@ export default function SettingsDrawer({ isOpen, onClose }) {
                     >
                       <Trash2 size={16} className="text-text-muted hover:text-red-400" />
                     </button>
+                    <button
+                      onClick={() => testKey(key)}
+                      data-testid={`test-key-${key.id}`}
+                      className="p-2 hover:bg-background rounded transition-all mr-2"
+                      title="Test key"
+                    >
+                      {testingKeyId === key.id ? (
+                        <Clock size={16} className="text-amber-400 animate-spin" />
+                      ) : (
+                        <RefreshCw size={16} className="text-text-muted" />
+                      )}
+                    </button>
+                    {key.status !== 'active' && (
+                      <button
+                        onClick={() => markActiveKey(key.id)}
+                        data-testid={`reset-key-${key.id}`}
+                        className="p-2 hover:bg-background rounded transition-all mr-2"
+                        title="Reset key status"
+                      >
+                        <CheckCircle size={16} className="text-green-400" />
+                      </button>
+                    )}
                   </div>
 
                   <div className="flex items-center justify-between text-sm">
@@ -195,6 +286,8 @@ export default function SettingsDrawer({ isOpen, onClose }) {
                       Last used: {new Date(key.lastUsed).toLocaleString()}
                     </div>
                   )}
+                  
+                  
                 </div>
               ))
             )}
